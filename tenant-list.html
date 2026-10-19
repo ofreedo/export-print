@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Tenant List</title>
+<style>
+  :root {
+    --ink: #1c1e21;
+    --muted: #697077;
+    --faint: #a3a9b0;
+    --line: #d5d9de;
+    --line-strong: #a3a9b0;
+    --head: #eceff2;
+    --group: #dfe8f1;
+    --group-ink: #17324d;
+    --stripe: #f4f6f8;
+    --hover: #fff4cc;
+    --link: #1d5c96;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    color: var(--ink);
+    background: #fff;
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* ---------- Toolbar (screen only) ---------- */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    padding: 12px 24px;
+    background: #f6f7f8;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .toolbar .spacer { flex: 1; }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 7px; overflow: hidden; }
+  .seg label { position: relative; padding: 6px 12px; background: #fff; cursor: pointer; }
+  .seg label + label { border-left: 1px solid var(--line-strong); }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label:has(input:checked) { background: var(--group-ink); color: #fff; }
+  .seg label:has(input:focus-visible) { outline: 2px solid var(--link); outline-offset: -3px; }
+  .find { display: inline-flex; align-items: center; gap: 8px; }
+  .find input {
+    width: 17em;
+    padding: 6px 9px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    font: inherit;
+  }
+  .check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: #fff;
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--group-ink); border-color: var(--group-ink); color: #fff; font-weight: 600; }
+  .btn input[type=file] { display: none; }
+
+  /* ---------- Page heading ---------- */
+  main { max-width: 1500px; margin: 0 auto; padding: 22px 24px 48px; }
+  .doc-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 6px 24px;
+    margin-bottom: 14px;
+  }
+  h1 { margin: 0; font-size: 24px; letter-spacing: -0.01em; }
+  .summary { margin: 4px 0 0; }
+  .note { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .stamp { color: var(--muted); font-size: 13px; text-align: right; }
+  .print-only { display: none; }
+
+  /* ---------- The sheet ----------
+     Each property (or each run of rows in the A–Z view) is its own small table with its own
+     column headings. Safari doesn't repeat table headings on printed pages and will split a
+     table row across two pages, so blocks that never split are what keep the printout readable.
+     Fixed column widths keep every block lined up with the others. */
+  .block + .block { margin-top: 14px; }
+  .run + .run { margin-top: -1px; }
+  table.sheet {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet th, .sheet td {
+    border: 1px solid var(--line);
+    padding: 6px 9px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .sheet td { overflow-wrap: anywhere; }
+  .sheet tr.cols th {
+    background: var(--head);
+    font-size: 0.9em;
+    font-weight: 600;
+    border-bottom-color: var(--line-strong);
+  }
+  .sheet tr.group th {
+    background: var(--group);
+    color: var(--group-ink);
+    font-weight: 400;
+    border-color: var(--line-strong);
+  }
+  .group .addr { font-weight: 700; }
+  .group .place { margin-left: 0.7em; }
+  .group .count { float: right; margin-left: 1em; color: var(--muted); }
+  .sheet tr.alt td { background: var(--stripe); }
+  @media (hover: hover) {
+    .sheet tbody tr:not(.group):hover td { background: var(--hover); }
+  }
+  .sheet .num { text-align: right; }
+  .none, .muted { color: var(--faint); }
+  .small { font-size: 0.88em; color: var(--muted); }
+  .sub { display: block; font-size: 0.88em; color: var(--muted); }
+  .sheet a { color: var(--link); text-decoration: none; }
+  .sheet a:hover { text-decoration: underline; }
+  .sheet .empty td { padding: 28px; text-align: center; color: var(--muted); }
+
+  @media screen {
+    /* On screen the A–Z runs read as one continuous sheet with one set of headings. */
+    .run + .run thead { display: none; }
+  }
+
+  /* "screen" matters: a printed page is also under 760px wide. */
+  @media screen and (max-width: 760px) {
+    .toolbar, main { padding-left: 12px; padding-right: 12px; }
+    .find, .find input { width: 100%; }
+    .scroll { overflow-x: auto; }
+    table.sheet { min-width: 860px; }
+  }
+
+  /* ---------- Print ---------- */
+  @page { margin: 0.4in; }
+  @media print {
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar, .screen-only { display: none !important; }
+    .print-only { display: inline; }
+    body { min-height: 0; font-size: 9pt; }
+    main { max-width: none; padding: 0; }
+    .doc-head { margin-bottom: 8pt; }
+    h1 { font-size: 15pt; }
+    .summary, .note, .stamp { font-size: 8.5pt; }
+    .block { break-inside: avoid; page-break-inside: avoid; }
+    .block + .block { margin-top: 7pt; }
+    .run + .run { margin-top: 7pt; }
+    table.sheet { font-size: 8.5pt; }
+    .sheet th, .sheet td { padding: 2.5pt 4pt; border-color: #b9bec4; }
+    .sheet tr.cols th { background: #eceef0; border-bottom-color: #7d848b; }
+    .sheet tr.group th { border-color: #7d848b; }
+    .sheet tr { break-inside: avoid; page-break-inside: avoid; }
+    .sheet a { color: inherit; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="seg" role="radiogroup" aria-label="Arrange the list">
+    <label><input type="radio" name="view" value="property" checked> By property</label>
+    <label><input type="radio" name="view" value="renter"> By renter (A–Z)</label>
+  </div>
+  <label class="find">Find
+    <input type="search" id="find" placeholder="Name, address, unit, email…" autocomplete="off">
+  </label>
+  <label class="check"><input type="checkbox" id="contacts" checked> Show phone &amp; email</label>
+  <span class="spacer"></span>
+  <label class="btn">Open another export…<input type="file" id="file" accept=".csv,text/csv"></label>
+  <button type="button" class="btn primary" id="print">Print</button>
+</div>
+
+<main>
+  <div class="doc-head">
+    <div>
+      <h1>Tenant List</h1>
+      <p class="summary" id="summary"></p>
+      <p class="note" id="note"></p>
+    </div>
+    <div class="stamp">
+      <span class="print-only" id="printed"></span>
+      <span class="screen-only" id="source"></span>
+    </div>
+  </div>
+  <div class="scroll" id="sheet"></div>
+</main>
+
+<script>
+/* The export is embedded between the CSV and END markers below.
+   To refresh it with a newer export, run:
+   python3 -I _build/build.py source/tenant-export.csv tenant-list.html
+   (or use "Open another export…" in the toolbar for a one-off look). */
+const EMBEDDED = /*CSV*/{"name": "tenant-export.csv", "text": "\"Renter\",\"Email\",\"Phone\",\"Property\",\"Unit\",\"City\",\"State\",\"Zip Code\",\"Rent\",\"Lease Start\",\"Lease End\",\"Status\",\"Auto-Pay Status\",\"Auto-Pay Amount to Pay\",\"Auto-Pay Day of Month\",\"Last Auto-Pay Status\",\"Last Auto-Pay Amount\",\"Last Auto-Pay Attempt\",\"Last Auto-Pay Status Reason\"\n\"Lacy\",\"\",\"\",\"140 Riverside Ave\",\"6\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,800.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Haleh Ahghari\",\"haleh.ahghari@gmail.com\",\"\",\"235 Arnold Ave\",\"B\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,300.00\",\"07/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gustavo Alba\",\"shineon1903@gmail.com\",\"831-439-4402\",\"8925 Glen Arbor Rd\",\"2\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,400.00\",\"12/12/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Kaylah Alba\",\"kaybay2689@gmail.com\",\"831-212-7107\",\"8925 Glen Arbor Rd\",\"2\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,400.00\",\"12/12/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Lauren Bailey\",\"lauren@baileybusiness.support\",\"408-438-1634\",\"140 Hillside Ave\",\"140\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,250.00\",\"02/01/2026\",\"\",\"Current Tenant\",\"Active\",\"$2,250.00\",\"31\",\"Succeeded\",\"$2,250.00\",\"09/30/2026\",\"\"\n\"Cheryl Becking\",\"\",\"\",\"140 Hillside Ave\",\"144\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,000.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Misty Bianco\",\"biancomisty38@gmail.com\",\"831-854-5474\",\"175 Shadowbrook Rd\",\"155\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,000.00\",\"11/23/2023\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Kelli Blair\",\"\",\"\",\"140 Hillside Ave\",\"154B\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,800.00\",\"03/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Debra Burgess\",\"\",\"\",\"9080 Redwood Dr\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,462.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Heather Burson\",\"\",\"\",\"11330 CA-9\",\"B\",\"Brookdale\",\"CA\",\"95007\",\"$1,782.00\",\"08/03/2021\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Rosemary Chalmers\",\"\",\"\",\"140 Hillside Ave\",\"146A\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,800.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Brittany Chambliss\",\"\",\"\",\"175 Shadowbrook Rd\",\"175MAIN\",\"Ben Lomond\",\"CA\",\"95005\",\"$5,500.00\",\"03/15/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Bonnie Chandler\",\"\",\"\",\"15525 Hwy 9\",\"Main\",\"Boulder Creek\",\"CA\",\"95006\",\"$2,460.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gerald Chandler\",\"\",\"\",\"15525 Hwy 9\",\"Main\",\"Boulder Creek\",\"CA\",\"95006\",\"$2,460.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Alexandra Chaney\",\"campbell.sunflower@gmail.com\",\"408-658-7415\",\"140 Hillside Ave\",\"156\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,000.00\",\"05/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Shaun Columbia\",\"\",\"\",\"175 Shadowbrook Rd\",\"BarnHouse\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,100.00\",\"04/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Thomas Connelly\",\"\",\"\",\"7945 Hwy 9\",\"Plantworks\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,900.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Amber Cornett\",\"\",\"\",\"235 Arnold Ave\",\"A\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,497.00\",\"01/27/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Harold Crafton\",\"\",\"\",\"160 Locust Ln\",\"162\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,310.00\",\"01/01/2017\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Maria Cucchiara\",\"mariacampodonico@msn.com\",\"408-656-0956\",\"9062 Redwood Dr\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,300.00\",\"09/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Daniel Davies\",\"\",\"\",\"13420 Big Basin Wy\",\"Tinyhome\",\"Boulder Creek\",\"CA\",\"95006\",\"$1,674.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Matthew Davies\",\"\",\"\",\"140 Riverside Ave\",\"5\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,700.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Alvarez De La Cruz\",\"\",\"\",\"140 Hillside Ave\",\"142A\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,925.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Juan De La Cruz\",\"\",\"\",\"140 Hillside Ave\",\"148\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,150.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Edmund Doyle\",\"\",\"\",\"7905 Hwy 9\",\"Unit2\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,500.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Austin Eastridge Jr.\",\"\",\"\",\"15529 Kings Creek Rd\",\"Main\",\"Boulder Creek\",\"CA\",\"95006\",\"$2,302.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Nancy Eaton\",\"\",\"\",\"9084 Redwood Dr\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,586.00\",\"03/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Victornia Elliott\",\"\",\"\",\"140 Hillside Ave\",\"152\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,176.00\",\"11/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Terry (Lucy) Empert\",\"freeway247@yahoo.com\",\"\",\"7905 Hwy 9\",\"Downstairs\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,800.00\",\"11/01/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Jennifer Fries\",\"\",\"\",\"7905 Hwy 9\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,750.00\",\"02/17/2017\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Shawn Fries\",\"\",\"\",\"7905 Hwy 9\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,750.00\",\"02/17/2017\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Carlos Gonzalez\",\"kelsi.blust@gmail.com\",\"\",\"345 St Francis Dr\",\"Downstairs\",\"Boulder Creek\",\"CA\",\"95006\",\"$3,200.00\",\"08/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Karla Gonzalez\",\"gonzalezkara48z@gmail.com\",\"\",\"8925 Glen Arbor Rd\",\"MainHouse\",\"Ben Lomond\",\"CA\",\"95005\",\"\",\"\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Amanda Guard\",\"\",\"\",\"8925 Glen Arbor Rd\",\"4\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,500.00\",\"05/25/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Evelyn Guillen Chicas\",\"\",\"\",\"140 Hillside Ave\",\"150\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,850.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gail Hammonds\",\"\",\"\",\"175 Shadowbrook Rd\",\"185\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,300.00\",\"01/09/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Nancy Haver\",\"havernlh@icloud.com\",\"\",\"140 Riverside Ave\",\"4\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,800.00\",\"01/01/2026\",\"12/31/2026\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Tynica Hickman\",\"tynicahickman@gmail.com\",\"\",\"175 Shadowbrook Rd\",\"175MAIN\",\"Ben Lomond\",\"CA\",\"95005\",\"$5,500.00\",\"03/15/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gerardo Huesca\",\"\",\"\",\"175 Shadowbrook Rd\",\"175ApartmentBasement\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,600.00\",\"01/01/2023\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Dquincy Huggins\",\"\",\"\",\"175 Shadowbrook Rd\",\"175MAIN\",\"Ben Lomond\",\"CA\",\"95005\",\"$5,500.00\",\"03/15/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Fast Brake INC.\",\"\",\"\",\"7930 Hwy 9\",\"Mechanic Shop\",\"Ben Lomond\",\"CA\",\"95005\",\"$7,750.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Paul Jaspal\",\"kharajaspal@yahoo.com\",\"(510) 565-4229\",\"7970 CA-9\",\"Masood\u2019s Liquor\",\"Ben Lomond\",\"CA\",\"95005\",\"$9,730.47\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Anita Jester\",\"\",\"\",\"140 Riverside Ave\",\"2\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,506.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Rodney Keller\",\"\",\"\",\"175 Shadowbrook Rd\",\"175MAIN\",\"Ben Lomond\",\"CA\",\"95005\",\"$5,500.00\",\"03/15/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Mike Kelley\",\"\",\"\",\"140 Riverside Ave\",\"3\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,000.00\",\"10/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Jeff Kocjan\",\"jeffkocjan@rocketmail.com\",\"831-332-0415\",\"11315 Center St\",\"Main\",\"Brookdale\",\"CA\",\"95007\",\"$3,600.00\",\"01/01/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Timothy Kropp\",\"\",\"\",\"140 Hillside Ave\",\"142B\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,686.00\",\"01/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Leonardo La Placa\",\"\",\"\",\"160 Locust Ln\",\"160\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,325.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Lori Lee\",\"mamalama831@gmail.com\",\"\",\"140 Riverside Ave\",\"1\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,710.00\",\"01/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Karla Leggett\",\"\",\"\",\"130 Alameda Ave\",\"1\",\"Brookdale\",\"CA\",\"95007\",\"$2,000.00\",\"10/23/2023\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"SAWMILL Group LLC\",\"\",\"\",\"15520 Hwy 9\",\"Sawmill\",\"Boulder Creek\",\"CA\",\"95006\",\"$4,043.09\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Amethyst Machado\",\"\",\"\",\"130 Alameda Ave\",\"3\",\"Brookdale\",\"CA\",\"95007\",\"$1,500.00\",\"01/01/2025\",\"12/31/2025\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Michelle Mathew\",\"\",\"\",\"7985 CA-9\",\"Busy Bee's School\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,800.00\",\"02/01/2026\",\"01/31/2027\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Brandy Meyering\",\"\",\"\",\"175 Shadowbrook Rd\",\"185A\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,280.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Kristin Miller\",\"mountainpawspa@gmail.com\",\"\",\"7932 Hwy 9\",\"Pet Grooming\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,000.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"John Otts\",\"\",\"\",\"140 Riverside Ave\",\"4\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,800.00\",\"12/01/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"John Otts\",\"\",\"\",\"175 Shadowbrook Rd\",\"175A7\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,000.00\",\"02/01/2026\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Linares Pintin\",\"\",\"\",\"140 Hillside Ave\",\"150\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,700.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Ovidio Pintin\",\"\",\"\",\"140 Hillside Ave\",\"150\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,850.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Elizabeth Ramirez-Rivera\",\"eliza.beth.83.08@hotmail.com\",\"\",\"7985 CA-9\",\"Ice Cream Shop\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,800.00\",\"02/01/2026\",\"01/31/2027\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Room Real Estate\",\"\",\"\",\"8925 Glen Arbor Rd\",\"Warehouse\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,750.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gerardo Rivera\",\"franciscoxrivera01@yahoo.com\",\"831-419-4953\",\"140 Hillside Ave\",\"154A\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,800.00\",\"06/24/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Tom Oliver Ross\",\"\",\"\",\"235 Arnold Ave\",\"C\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,110.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Tamara Rusboldt\",\"\",\"\",\"7905 Hwy 9\",\"Unit3\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,450.00\",\"02/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Gloria Shiner\",\"\",\"\",\"9026 Redwood Dr\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,057.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Rose Shiner\",\"\",\"\",\"9060 Redwood Dr\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,532.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Lacy Sladwick\",\"lacsladwick@gmail.com\",\"831-252-3427\",\"11330 CA-9\",\"A\",\"Brookdale\",\"CA\",\"95007\",\"$1,905.00\",\"01/22/2022\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"James Sutherlin\",\"jamesrsutherlin@gmail.com\",\"408-766-9335\",\"235 Arnold Ave\",\"Main\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,600.00\",\"01/01/2026\",\"\",\"Current Tenant\",\"Active\",\"$3,600.00\",\"1\",\"Succeeded\",\"$3,600.00\",\"10/01/2026\",\"\"\n\"Smireth Sweet\",\"smireth@icloud.com\",\"\",\"175 Shadowbrook Rd\",\"165\",\"Ben Lomond\",\"CA\",\"95005\",\"$3,800.00\",\"07/22/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Lucy Thurber\",\"\",\"\",\"7905 Hwy 9\",\"Downstairs\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,800.00\",\"11/01/2024\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Karina W\",\".@gmail.com\",\"\",\"140 Hillside Ave\",\"144\",\"Ben Lomond\",\"CA\",\"95005\",\"$2,750.00\",\"07/22/2026\",\"07/21/2027\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Randall White\",\"\",\"\",\"140 Hillside Ave\",\"146B\",\"Ben Lomond\",\"CA\",\"95005\",\"$1,200.00\",\"01/01/2026\",\"12/31/2026\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Christoper Wikstrom\",\"\",\"\",\"130 Alameda Ave\",\"C\",\"Brookdale\",\"CA\",\"95007\",\"$1,600.00\",\"05/19/2018\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n\"Dennis Wilbanks\",\"\",\"\",\"15527 Hwy 9\",\"Main\",\"Boulder Creek\",\"CA\",\"95006\",\"$2,000.00\",\"01/01/2025\",\"\",\"Current Tenant\",\"Inactive\",\"\",\"\",\"\",\"\",\"\",\"\"\n"}/*END*/;
+
+(function () {
+  'use strict';
+
+  // Export column names. Columns are found by header text, so their order can change.
+  const COL = {
+    renter: 'Renter', email: 'Email', phone: 'Phone', property: 'Property', unit: 'Unit',
+    city: 'City', state: 'State', zip: 'Zip Code', rent: 'Rent', start: 'Lease Start', end: 'Lease End',
+    status: 'Status', ap: 'Auto-Pay Status', apAmount: 'Auto-Pay Amount to Pay', apDay: 'Auto-Pay Day of Month',
+    apLast: 'Last Auto-Pay Status', apLastAmount: 'Last Auto-Pay Amount', apLastDate: 'Last Auto-Pay Attempt',
+    apReason: 'Last Auto-Pay Status Reason'
+  };
+
+  const state = { view: 'property', query: '', contacts: true, headers: [], records: [], source: '' };
+  const $ = (sel) => document.querySelector(sel);
+  const natural = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+  const NONE = '<span class="none">—</span>';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function parseCSV(text) {
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // byte-order mark
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+        else if (c === '"') quoted = false;
+        else field += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c !== '\r') field += c;
+    }
+    if (field !== '' || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r) => r.some((v) => v.trim() !== ''));
+  }
+
+  function load(text, name) {
+    const rows = parseCSV(text);
+    state.headers = (rows[0] || []).map((h) => h.trim());
+    state.records = rows.slice(1).map((r, i) => {
+      const rec = { _i: i };
+      state.headers.forEach((h, j) => { rec[h] = (r[j] || '').trim(); });
+      return rec;
+    });
+    state.source = name;
+    render();
+  }
+
+  const get = (rec, key) => rec[COL[key]] || '';
+
+  function phone(p) {
+    let d = p.replace(/\D/g, '');
+    if (d.length === 11 && d[0] === '1') d = d.slice(1);
+    return d.length === 10 ? d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6) : p;
+  }
+
+  function ordinal(n) {
+    const v = Number(n);
+    if (!Number.isInteger(v)) return n;
+    const t = v % 100;
+    if (t >= 11 && t <= 13) return v + 'th';
+    return v + ({ 1: 'st', 2: 'nd', 3: 'rd' }[v % 10] || 'th');
+  }
+
+  function autopay(rec) {
+    const status = get(rec, 'ap');
+    if (!status || /^inactive$/i.test(status)) return '<span class="muted">Off</span>';
+    let html = '<strong>' + (/^active$/i.test(status) ? 'On' : esc(status)) + '</strong>';
+    const amount = get(rec, 'apAmount'), day = get(rec, 'apDay');
+    if (amount || day) {
+      html += ' <span class="small">' + esc(amount) + (day ? ' on the ' + esc(ordinal(day)) : '') + '</span>';
+    }
+    const last = get(rec, 'apLast'), lastDate = get(rec, 'apLastDate'), lastAmount = get(rec, 'apLastAmount');
+    if (last || lastDate) {
+      const bits = [last, lastAmount && lastAmount !== amount ? lastAmount : '', lastDate].filter(Boolean);
+      html += '<span class="sub">Last: ' + esc(bits.join(', ')) + '</span>';
+    }
+    const reason = get(rec, 'apReason');
+    if (reason) html += '<span class="sub">' + esc(reason) + '</span>';
+    return html;
+  }
+
+  function cell(rec, key) {
+    const v = get(rec, key);
+    switch (key) {
+      case 'property': {
+        // A–Z view: address and unit together, town underneath.
+        const unit = get(rec, 'unit'), city = get(rec, 'city');
+        return (v ? esc(v) : NONE) + (unit ? ' · ' + unitHtml(unit) : '') +
+          (city ? '<span class="sub">' + esc(city) + '</span>' : '');
+      }
+      case 'contact': {
+        const p = get(rec, 'phone'), e = get(rec, 'email');
+        if (!p && !e) return NONE;
+        return (p ? '<a href="tel:' + esc(p.replace(/[^\d+]/g, '')) + '">' + esc(phone(p)) + '</a>' : '') +
+          (p && e ? '<br>' : '') +
+          // <wbr> lets a long address wrap before the @ instead of mid-word.
+          (e ? '<a href="mailto:' + esc(e) + '">' + esc(e).replace('@', '<wbr>@') + '</a>' : '');
+      }
+      case 'unit':
+        return v ? unitHtml(v) : NONE;
+      case 'ap':
+        return autopay(rec);
+      default:
+        return v ? esc(v) : NONE;
+    }
+  }
+
+  // Let run-together unit names like "175ApartmentBasement" wrap between words.
+  function unitHtml(u) {
+    return esc(u).replace(/([a-z])(?=[A-Z])/g, '$1<wbr>').replace(/(\d)(?=[A-Za-z]{3})/g, '$1<wbr>');
+  }
+
+  function columns(mixedStatus) {
+    const cols = [];
+    if (state.view === 'property') cols.push(['unit', 'Unit']);
+    cols.push(['renter', 'Renter']);
+    if (state.view === 'renter') cols.push(['property', 'Property · unit']);
+    if (mixedStatus) cols.push(['status', 'Status']);
+    cols.push(['rent', 'Rent', 'num'], ['start', 'Lease start'], ['end', 'Lease end']);
+    if (state.contacts) cols.push(['contact', 'Phone / email']);
+    cols.push(['ap', 'Auto-pay']);
+    return cols;
+  }
+
+  function row(rec, cols, alt) {
+    return '<tr' + (alt ? ' class="alt"' : '') + '>' +
+      cols.map(([key, , cls]) => '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + cell(rec, key) + '</td>').join('') +
+      '</tr>';
+  }
+
+  // Column widths in em, so they scale with the screen and print font sizes and every block
+  // lines up. Rent and dates are sized to fit "$9,730.47" and "01/27/2025" on one line.
+  // The flexible column (Phone / email, or Renter when contacts are hidden) takes what's left.
+  const WIDTH = { unit: 7, renter: 11, property: 13, status: 7, rent: 6.8, start: 7.2, end: 7.2, ap: 8.5 };
+  const RUN = 15; // rows per block in the A–Z view
+
+  function block(cols, rowsHtml, groupHtml, cls, fixed = true) {
+    const flex = cols.some(([key]) => key === 'contact') ? 'contact' : 'renter';
+    return '<section class="' + cls + '"><table class="sheet"><colgroup>' +
+      cols.map(([key]) => fixed && key !== flex && WIDTH[key] ? '<col style="width:' + WIDTH[key] + 'em">' : '<col>').join('') +
+      '</colgroup><thead>' + (groupHtml || '') + '<tr class="cols">' +
+      cols.map(([, label, cls]) => '<th scope="col"' + (cls === 'num' ? ' class="num"' : '') + '>' + esc(label) + '</th>').join('') +
+      '</tr></thead><tbody>' + rowsHtml + '</tbody></table></section>';
+  }
+
+  // Sort properties by town, then street name, then house number ("7905 Hwy 9" files under H).
+  function addressParts(a) {
+    const m = a.match(/^(\d+[A-Za-z]?)\s+(.*)$/);
+    return m ? [m[2], m[1]] : [a, ''];
+  }
+  function compareProperty(a, b) {
+    const [streetA, numA] = addressParts(get(a, 'property'));
+    const [streetB, numB] = addressParts(get(b, 'property'));
+    return natural.compare(get(a, 'city'), get(b, 'city')) ||
+      natural.compare(streetA, streetB) || natural.compare(numA, numB);
+  }
+
+  const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many || one + 's');
+
+  function matches(rec, q) {
+    const hay = state.headers.map((h) => rec[h]).join(' ') + ' ' + phone(get(rec, 'phone'));
+    return hay.toLowerCase().includes(q);
+  }
+
+  function render() {
+    const all = state.records;
+    const known = state.headers.includes(COL.renter) && state.headers.includes(COL.property);
+    if (!known) return renderGeneric();
+    document.querySelectorAll('.seg input, #contacts').forEach((el) => { el.disabled = false; });
+
+    const q = state.query.trim().toLowerCase();
+    const shown = q ? all.filter((r) => matches(r, q)) : all;
+    const statuses = [...new Set(all.map((r) => get(r, 'status')).filter(Boolean))];
+    const cols = columns(statuses.length > 1);
+
+    // Heading
+    const properties = new Set(all.map((r) => get(r, 'property') + '|' + get(r, 'city')));
+    const towns = [...new Set(all.map((r) => get(r, 'city')).filter(Boolean))].sort(natural.compare);
+    let summary = plural(all.length, 'renter') + ' · ' + plural(properties.size, 'property', 'properties');
+    if (towns.length) summary += ' · ' + towns.join(', ');
+    if (q) summary = 'Showing ' + shown.length + ' of ' + all.length + ' renters matching “' + state.query.trim() + '”';
+    $('#summary').textContent = summary;
+    let note = statuses.length === 1 ? 'Everyone here is listed as “' + statuses[0] + '.” ' : '';
+    note += 'Renters who share a unit are listed separately, so a unit’s rent can appear more than once.';
+    $('#note').textContent = note;
+    $('#source').textContent = state.source ? 'From ' + state.source : '';
+
+    // Tables
+    let html = '';
+    if (!shown.length) {
+      html = block(cols, '<tr class="empty"><td colspan="' + cols.length + '">No renters match “' + esc(state.query.trim()) + '.”</td></tr>', '', 'block');
+    } else if (state.view === 'property') {
+      const groups = new Map();
+      shown.forEach((r) => {
+        const key = [get(r, 'property'), get(r, 'city'), get(r, 'zip')].join('|');
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+      });
+      [...groups.values()].sort((a, b) => compareProperty(a[0], b[0])).forEach((group) => {
+        group.sort((a, b) => natural.compare(get(a, 'unit'), get(b, 'unit')) || a._i - b._i);
+        const first = group[0];
+        const place = [get(first, 'city'), [get(first, 'state'), get(first, 'zip')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        const units = new Set(group.map((r) => get(r, 'unit'))).size;
+        const count = units > 1 ? plural(units, 'unit') + ' · ' + plural(group.length, 'renter') : plural(group.length, 'renter');
+        const bar = '<tr class="group"><th colspan="' + cols.length + '" scope="colgroup">' +
+          '<span class="count">' + count + '</span>' +
+          '<span class="addr">' + esc(get(first, 'property') || 'No property listed') + '</span>' +
+          (place ? '<span class="place">' + esc(place) + '</span>' : '') +
+          '</th></tr>';
+        // Shade by unit, so renters who share a unit share a shade.
+        let shade = true, lastUnit = null, rows = '';
+        group.forEach((r) => {
+          if (get(r, 'unit') !== lastUnit) { shade = !shade; lastUnit = get(r, 'unit'); }
+          rows += row(r, cols, shade);
+        });
+        html += block(cols, rows, bar, 'block');
+      });
+    } else {
+      for (let i = 0; i < shown.length; i += RUN) {
+        html += block(cols, shown.slice(i, i + RUN).map((r, j) => row(r, cols, (i + j) % 2 === 1)).join(''), '', 'block run');
+      }
+    }
+    $('#sheet').innerHTML = html;
+  }
+
+  // Fallback for a CSV with different columns: show every column as-is.
+  function renderGeneric() {
+    document.querySelectorAll('.seg input, #contacts').forEach((el) => { el.disabled = true; });
+    const q = state.query.trim().toLowerCase();
+    const shown = q ? state.records.filter((r) => state.headers.map((h) => r[h]).join(' ').toLowerCase().includes(q)) : state.records;
+    $('#summary').textContent = (q ? 'Showing ' + shown.length + ' of ' : '') + plural(state.records.length, 'row');
+    $('#note').textContent = '';
+    $('#source').textContent = state.source ? 'From ' + state.source : '';
+    const cols = state.headers.map((h) => [h, h]);
+    let html = '';
+    for (let i = 0; i < shown.length; i += RUN) {
+      html += block(cols, shown.slice(i, i + RUN).map((r, j) => '<tr' + ((i + j) % 2 ? ' class="alt"' : '') + '>' +
+        state.headers.map((h) => '<td>' + (r[h] ? esc(r[h]) : NONE) + '</td>').join('') + '</tr>').join(''), '', 'block run', false);
+    }
+    $('#sheet').innerHTML = html;
+  }
+
+  // Controls
+  document.querySelectorAll('.seg input').forEach((el) => el.addEventListener('change', () => { state.view = el.value; render(); }));
+  $('#contacts').addEventListener('change', (e) => { state.contacts = e.target.checked; render(); });
+  $('#find').addEventListener('input', (e) => { state.query = e.target.value; render(); });
+  $('#find').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.target.value = ''; state.query = ''; render(); } });
+  $('#print').addEventListener('click', () => window.print());
+  $('#file').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) f.text().then((t) => load(t, f.name));
+    e.target.value = '';
+  });
+
+  const today = new Date();
+  $('#printed').textContent = 'Printed ' + today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  // Safari and Chrome use the page title as the PDF file name.
+  document.title = 'Tenant List ' + today.toLocaleDateString('en-CA');
+
+  load(EMBEDDED.text, EMBEDDED.name);
+})();
+</script>
+</body>
+</html>
